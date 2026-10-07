@@ -1,4 +1,4 @@
-name: AI PR Code Reviewer
+name: Workshop PR Checks
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   ai-review:
-    name: Autonomous AI Code Review
+    name: Rule-based Code Review
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run AI Automated Security & Code Audit
+      - name: Run Rule-based Security & Code Audit
         id: review
         run: |
           python - << 'EOF'
@@ -74,9 +74,10 @@ jobs:
 
           # Markdown Summary Generation
           with open("review_report.md", "w", encoding="utf-8") as rf:
-              rf.write("### 🤖 AI Code Review Bot Feedback\n\n")
+              rf.write("### Workshop rule-based review\n\n")
+              rf.write("This is a limited pattern scan, not a model-based review or a production security certification. See the tests job for automated verification.\n\n")
               if not findings:
-                  rf.write("✅ **모든 검사를 통과했습니다!** 보안 취약점 및 성능 병목 패턴이 발견되지 않았습니다. Merge를 진행하셔도 좋습니다.\n")
+                  rf.write("✅ 지정된 보안 및 성능 패턴에서 발견 사항이 없습니다. 별도 자동 테스트 결과도 확인하세요.\n")
               else:
                   rf.write(f"⚠️ PR 분석 결과 **총 {len(findings)}건의 잠재적 리스크**가 발견되었습니다. 다음 항목을 검토 후 리팩토링 커밋을 진행해 주세요.\n\n")
                   for item in findings:
@@ -99,3 +100,18 @@ jobs:
               repo: context.repo.repo,
               body: body
             });
+
+  verify:
+    name: Tests and Harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install workshop dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run tests with coverage threshold
+        run: python -m pytest tests -q --tb=short --cov=main --cov-report=term-missing --cov-fail-under=85
+      - name: Run workshop harness
+        run: python harness/check_harness.py
