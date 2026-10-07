@@ -18,6 +18,7 @@ from harness import check_harness as harness
     ('query = "INSERT INTO todos VALUES ({})".format(value)', 'CWE-89'),
     ('ADMIN_TOKEN = "example-only"', 'CWE-798'),
     ('ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "example-only")', 'CWE-798'),
+    ('ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", default="example-only")', 'CWE-798'),
     ('import hashlib\nhashlib.md5(value)', 'CWE-327'),
     ('try:\n    run()\nexcept:\n    pass', 'Silent Failure'),
 ])

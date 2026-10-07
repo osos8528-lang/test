@@ -62,7 +62,7 @@ def audit_python(source, path):
                     and value.func.attr in {"getenv", "get"}
                     and (
                         (len(value.args) >= 2 and isinstance(value.args[1], ast.Constant) and isinstance(value.args[1].value, str) and bool(value.args[1].value))
-                        or any(kw.arg == "default" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str) and bool(kw.value.value.value) for kw in value.keywords)
+                        or any(kw.arg == "default" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str) and bool(kw.value.value) for kw in value.keywords)
                     )
                 )
                 if literal or fallback:
