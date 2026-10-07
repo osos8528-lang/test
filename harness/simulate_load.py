@@ -94,6 +94,7 @@ def run_live_load_test(target_url: str, total_requests: int = 100, concurrency: 
         print("  서버 로그와 응답을 확인하세요. 이 결과만으로 실패 원인을 단정할 수 없습니다.")
     else:
         print(f"\n  \033[1;32m✅ [PASS] 이번 요청에서 실패 없음 (에러율: {error_rate:.2f}%, p99: {p99:.2f}ms)\033[0m")
+    return fail_count == 0
 
 
 def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
@@ -218,18 +219,27 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
     print("\n주의: 저널 모드 외에도 대기 시간과 인위적 지연이 다릅니다. WAL만의 개선 효과나 운영 SLA를 입증하지 않습니다.\n")
 
 
+def positive_integer(value):
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("1 이상의 정수를 입력하세요.")
+    return number
+
+
 def main():
     parser = argparse.ArgumentParser(description="Campus AI Engineering Concurrency & Load Benchmark")
     parser.add_argument("--url", type=str, default=None, help="Live API target URL (e.g. http://localhost:8000/todos)")
-    parser.add_argument("--requests", type=int, default=100, help="Total requests count (default: 100)")
-    parser.add_argument("--concurrency", type=int, default=20, help="Concurrency workers (default: 20)")
+    parser.add_argument("--requests", type=positive_integer, default=100, help="Total requests count (default: 100)")
+    parser.add_argument("--concurrency", type=positive_integer, default=20, help="Concurrency workers (default: 20)")
     args = parser.parse_args()
 
     if args.url:
-        run_live_load_test(args.url, total_requests=args.requests, concurrency=args.concurrency)
+        passed = run_live_load_test(args.url, total_requests=args.requests, concurrency=args.concurrency)
+        return 0 if passed else 1
     else:
         run_standalone_comparison(total_requests=args.requests, concurrency=args.concurrency)
+        return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
