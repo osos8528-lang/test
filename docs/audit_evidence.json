@@ -1,0 +1,329 @@
+{
+  "baseline_commit": "9df685863ef3d8cdc70787e452ebfdc35106d494",
+  "tracked_files_reviewed": 29,
+  "inventory": [
+    {
+      "file": ".env.example",
+      "baseline_sha256": "86bd022ad79cde1c81ce86f21cea2292ec5e63e8e9e7f999a341aab33067144c",
+      "current_sha256": "86bd022ad79cde1c81ce86f21cea2292ec5e63e8e9e7f999a341aab33067144c",
+      "lines_reviewed": 4,
+      "changed_in_audit": false
+    },
+    {
+      "file": ".github/workflows/ai_pr_review.yml",
+      "baseline_sha256": "0453599099c770574602b466c5cdaf62fa8f87bc7f7c498b2a9c4b2632f019d9",
+      "current_sha256": "fef9d2f6c9d5dfff33124c2fa0a14069e064cb00188935e7e1a97e2a83dbbd21",
+      "lines_reviewed": 64,
+      "changed_in_audit": true
+    },
+    {
+      "file": ".gitignore",
+      "baseline_sha256": "8e1ca61e4962048884fc4ad07adec4e03d46dfdb0a752ad5cfe1c7a4b8add8f7",
+      "current_sha256": "8e1ca61e4962048884fc4ad07adec4e03d46dfdb0a752ad5cfe1c7a4b8add8f7",
+      "lines_reviewed": 51,
+      "changed_in_audit": false
+    },
+    {
+      "file": "README.md",
+      "baseline_sha256": "973769065024465ed0486b9a098621c1e61c3816f482b4d604628d36c3d4fd41",
+      "current_sha256": "973769065024465ed0486b9a098621c1e61c3816f482b4d604628d36c3d4fd41",
+      "lines_reviewed": 145,
+      "changed_in_audit": false
+    },
+    {
+      "file": "docs/TRAINING_TEMPLATE.md",
+      "baseline_sha256": "df01642599ba2b4207a24e32fa71fac2a528d4baa0e368893a0ec3d37a96cf73",
+      "current_sha256": "df01642599ba2b4207a24e32fa71fac2a528d4baa0e368893a0ec3d37a96cf73",
+      "lines_reviewed": 95,
+      "changed_in_audit": false
+    },
+    {
+      "file": "docs/VALIDATION.md",
+      "baseline_sha256": "ad7dbd82d3440d77021c59dde1bb6a4d95ad6adeecf8dad1365839d0525355fd",
+      "current_sha256": "ad7dbd82d3440d77021c59dde1bb6a4d95ad6adeecf8dad1365839d0525355fd",
+      "lines_reviewed": 38,
+      "changed_in_audit": false
+    },
+    {
+      "file": "docs/api_load.txt",
+      "baseline_sha256": "4ae34bbcb2447bd40f87ff84b73305b86d90fbd61a8fd55fea1ee1b70fe63bdf",
+      "current_sha256": "4ae34bbcb2447bd40f87ff84b73305b86d90fbd61a8fd55fea1ee1b70fe63bdf",
+      "lines_reviewed": 12,
+      "changed_in_audit": false
+    },
+    {
+      "file": "docs/environment.json",
+      "baseline_sha256": "d40f7d1422ace147349933bf2e495b7d3d49a061714722f45805f2600d14d267",
+      "current_sha256": "d40f7d1422ace147349933bf2e495b7d3d49a061714722f45805f2600d14d267",
+      "lines_reviewed": 9,
+      "changed_in_audit": false
+    },
+    {
+      "file": "docs/sqlite_comparison.txt",
+      "baseline_sha256": "0256b389d1585100ebd1ae3c2b1e762d52e4408799fea882c96b63b808b835b8",
+      "current_sha256": "0256b389d1585100ebd1ae3c2b1e762d52e4408799fea882c96b63b808b835b8",
+      "lines_reviewed": 26,
+      "changed_in_audit": false
+    },
+    {
+      "file": "docs/validation_harness.json",
+      "baseline_sha256": "f882a5008f055b6b4d3eb7a5243be0d8a1644f77765cd3b190220a378adbdc4c",
+      "current_sha256": "f882a5008f055b6b4d3eb7a5243be0d8a1644f77765cd3b190220a378adbdc4c",
+      "lines_reviewed": 6,
+      "changed_in_audit": false
+    },
+    {
+      "file": "harness/AGENTS.md",
+      "baseline_sha256": "0ff1bd27f9e8c13c45034e5f611bdcfec49d4d3ab2f7f18eccad0416f9e28e78",
+      "current_sha256": "0ff1bd27f9e8c13c45034e5f611bdcfec49d4d3ab2f7f18eccad0416f9e28e78",
+      "lines_reviewed": 48,
+      "changed_in_audit": false
+    },
+    {
+      "file": "harness/check_harness.py",
+      "baseline_sha256": "aab2fe38a302160435798ff9bcc1a8e4267a4fb649a110f2928d3925717b4bbe",
+      "current_sha256": "dcf4842d7f2b3df44bd5fbbc5934c693fc7152d81f50ac2bc3fa08c4f436ad84",
+      "lines_reviewed": 204,
+      "changed_in_audit": true
+    },
+    {
+      "file": "harness/simulate_load.py",
+      "baseline_sha256": "373b87c264464f40031f3cb9a3af270e81e237d42a6d09e9384291adb2404e51",
+      "current_sha256": "7a712b3ce6bc4bc1bcce1ed872a4b84c95d749694356de79fe7ca8136f437b0e",
+      "lines_reviewed": 245,
+      "changed_in_audit": true
+    },
+    {
+      "file": "main.py",
+      "baseline_sha256": "42b0abd525cbb59cb28c680449d66f14cafc304d77786c77c266860ec5b6b029",
+      "current_sha256": "42b0abd525cbb59cb28c680449d66f14cafc304d77786c77c266860ec5b6b029",
+      "lines_reviewed": 359,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/01_session1_toy_project_todo.md",
+      "baseline_sha256": "5b7fb3a6fd397ae70c1fe1a1647e2c978e2d4525b9778dae302943861ed5198a",
+      "current_sha256": "5b7fb3a6fd397ae70c1fe1a1647e2c978e2d4525b9778dae302943861ed5198a",
+      "lines_reviewed": 30,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/02_session1_toy_project_weather.md",
+      "baseline_sha256": "2cc3c380b190b74310ebacec5f3eeb67beef7ce32c691232539f92a5bd17809e",
+      "current_sha256": "2cc3c380b190b74310ebacec5f3eeb67beef7ce32c691232539f92a5bd17809e",
+      "lines_reviewed": 27,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/03_session1_toy_project_board.md",
+      "baseline_sha256": "837a0670b5134ed18557adde95a3a81d1d5502b63eeec30d8a9856828f663689",
+      "current_sha256": "837a0670b5134ed18557adde95a3a81d1d5502b63eeec30d8a9856828f663689",
+      "lines_reviewed": 27,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/04_session1_toy_project_custom.md",
+      "baseline_sha256": "b9a0319c7e8ddb97614cad9c2aa8a0d66eebd7e1f2c84777df062c89405ce4e4",
+      "current_sha256": "b9a0319c7e8ddb97614cad9c2aa8a0d66eebd7e1f2c84777df062c89405ce4e4",
+      "lines_reviewed": 28,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/05_session1_pr_review_self_heal.md",
+      "baseline_sha256": "9371782971a58a1a7aae183e56b0bd0ea720a303b4cd27c1b7ac8e61a7e483e6",
+      "current_sha256": "9371782971a58a1a7aae183e56b0bd0ea720a303b4cd27c1b7ac8e61a7e483e6",
+      "lines_reviewed": 43,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/06_session2_harness_self_heal.md",
+      "baseline_sha256": "362133c274534b96363d7bbc44637d2330419feafe8592117030bbefd35fe982",
+      "current_sha256": "362133c274534b96363d7bbc44637d2330419feafe8592117030bbefd35fe982",
+      "lines_reviewed": 37,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/07_session2_portfolio_readme.md",
+      "baseline_sha256": "1e4c5b471733879de07ea41a780c3135c108f528d7c6984853432fb2212d8d06",
+      "current_sha256": "1e4c5b471733879de07ea41a780c3135c108f528d7c6984853432fb2212d8d06",
+      "lines_reviewed": 41,
+      "changed_in_audit": false
+    },
+    {
+      "file": "prompts/README.md",
+      "baseline_sha256": "c59d17b89ef30b1a1bda0b96166c82f9f170fdbef03edb6968fba183572605a5",
+      "current_sha256": "c59d17b89ef30b1a1bda0b96166c82f9f170fdbef03edb6968fba183572605a5",
+      "lines_reviewed": 24,
+      "changed_in_audit": false
+    },
+    {
+      "file": "requirements-dev.txt",
+      "baseline_sha256": "ae903e7b3db371e9ce0f0d6ddfd92a1a9989650e5fcc612b875ba67d3ff9cdf0",
+      "current_sha256": "ae903e7b3db371e9ce0f0d6ddfd92a1a9989650e5fcc612b875ba67d3ff9cdf0",
+      "lines_reviewed": 3,
+      "changed_in_audit": false
+    },
+    {
+      "file": "requirements.txt",
+      "baseline_sha256": "547f79ba19b8a756036ba964feb020f2bfc35d7c2f4c7ae420d737bc2e0a1a04",
+      "current_sha256": "547f79ba19b8a756036ba964feb020f2bfc35d7c2f4c7ae420d737bc2e0a1a04",
+      "lines_reviewed": 5,
+      "changed_in_audit": false
+    },
+    {
+      "file": "run_local.py",
+      "baseline_sha256": "0d79825eecc83fbe17695e95afa5d35a6e928d3471ea73bbcb64639499a8cbd1",
+      "current_sha256": "0d79825eecc83fbe17695e95afa5d35a6e928d3471ea73bbcb64639499a8cbd1",
+      "lines_reviewed": 16,
+      "changed_in_audit": false
+    },
+    {
+      "file": "templates/PROMPT_PRESETS.md",
+      "baseline_sha256": "0bd6a079be6baeb8ae4115cc984d12cb3a6c554266da4ea8c1a647590b49d7b7",
+      "current_sha256": "0bd6a079be6baeb8ae4115cc984d12cb3a6c554266da4ea8c1a647590b49d7b7",
+      "lines_reviewed": 78,
+      "changed_in_audit": false
+    },
+    {
+      "file": "templates/README_PORTFOLIO_TEMPLATE.md",
+      "baseline_sha256": "0b821d84c68442fb5709d80f246dc779a26b2af329bc208d416ef2e46edb53ce",
+      "current_sha256": "0b821d84c68442fb5709d80f246dc779a26b2af329bc208d416ef2e46edb53ce",
+      "lines_reviewed": 91,
+      "changed_in_audit": false
+    },
+    {
+      "file": "tests/test_api.py",
+      "baseline_sha256": "1a723b18b47729d16fafa1c4ee7a1f9e8ae3d75cb8d3a21a0f07d3c2a3828dca",
+      "current_sha256": "1a723b18b47729d16fafa1c4ee7a1f9e8ae3d75cb8d3a21a0f07d3c2a3828dca",
+      "lines_reviewed": 221,
+      "changed_in_audit": false
+    },
+    {
+      "file": "tests/test_load_simulator.py",
+      "baseline_sha256": "4de982a83f45ec26788a32043cb04e9efa2b685fa879b5841a3ea7f74aa011f7",
+      "current_sha256": "3984d6b98565a37c2d74f0e7590836fb6806a5669d777d452be91a505974e9dd",
+      "lines_reviewed": 48,
+      "changed_in_audit": true
+    }
+  ],
+  "copies": [
+    {
+      "folder": "test",
+      "missing": [],
+      "different_from_baseline": []
+    },
+    {
+      "folder": "GitHub/test",
+      "missing": [],
+      "different_from_baseline": [
+        ".github/workflows/ai_pr_review.yml",
+        "harness/check_harness.py",
+        "harness/simulate_load.py",
+        "tests/test_load_simulator.py"
+      ]
+    },
+    {
+      "folder": "GitHub/test_이전복사본",
+      "missing": [
+        "docs/TRAINING_TEMPLATE.md",
+        "docs/VALIDATION.md",
+        "docs/api_load.txt",
+        "docs/environment.json",
+        "docs/sqlite_comparison.txt",
+        "docs/validation_harness.json"
+      ],
+      "different_from_baseline": [
+        "README.md"
+      ]
+    }
+  ],
+  "initial_source_findings": [
+    {
+      "stage": "Security",
+      "rule": "CWE-798 (Hardcoded Secret)",
+      "file": "initial/main.py",
+      "line": 38,
+      "message": "비밀값 또는 비밀값의 기본값을 코드에 저장하지 마세요."
+    },
+    {
+      "stage": "Security",
+      "rule": "CWE-89 (Dynamic SQL)",
+      "file": "initial/main.py",
+      "line": 158,
+      "message": "SQL 문자열 조합 발견. 매개변수 바인딩 여부를 검토하세요."
+    },
+    {
+      "stage": "Security",
+      "rule": "CWE-89 (Dynamic SQL)",
+      "file": "initial/main.py",
+      "line": 200,
+      "message": "SQL 문자열 조합 발견. 매개변수 바인딩 여부를 검토하세요."
+    },
+    {
+      "stage": "Security",
+      "rule": "CWE-89 (Dynamic SQL)",
+      "file": "initial/main.py",
+      "line": 141,
+      "message": "SQL 문자열 조합 발견. 매개변수 바인딩 여부를 검토하세요."
+    },
+    {
+      "stage": "Security",
+      "rule": "CWE-89 (Dynamic SQL)",
+      "file": "initial/main.py",
+      "line": 180,
+      "message": "SQL 문자열 조합 발견. 매개변수 바인딩 여부를 검토하세요."
+    },
+    {
+      "stage": "Security",
+      "rule": "CWE-327 (Weak Hash)",
+      "file": "initial/main.py",
+      "line": 91,
+      "message": "MD5/SHA-1 사용 목적을 검토하세요. 비밀번호에는 적절한 비밀번호 해시를 사용하세요."
+    }
+  ],
+  "current_source_findings": [],
+  "deduplication": {
+    "records": 5000,
+    "unique_ids": 2500,
+    "repeats": 7,
+    "same_output": true,
+    "original_nested_loop": {
+      "median_ms": 403.8901,
+      "samples_ms": [
+        402.81590004451573,
+        341.978200012818,
+        403.890100074932,
+        414.0980998054147,
+        397.4780000280589,
+        458.0999000463635,
+        479.55600009299815
+      ]
+    },
+    "current_set_lookup": {
+      "median_ms": 0.2654,
+      "samples_ms": [
+        0.3301000688225031,
+        0.27229986153542995,
+        0.26539992541074753,
+        0.25949999690055847,
+        0.25500007905066013,
+        0.287200091406703,
+        0.26190001517534256
+      ]
+    }
+  },
+  "query_plans": {
+    "todo_id": [
+      "SEARCH todos USING INTEGER PRIMARY KEY (rowid=?)"
+    ],
+    "session_token": [
+      "SEARCH sessions USING INDEX sqlite_autoindex_sessions_1 (token_hash=?)"
+    ],
+    "session_expiry": [
+      "SEARCH sessions USING INDEX idx_sessions_expiry (expires_at<?)"
+    ],
+    "substring_search": [
+      "SCAN todos"
+    ]
+  }
+}

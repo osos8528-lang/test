@@ -1,207 +1,203 @@
 #!/usr/bin/env python3
-"""
-[Universal Project Harness & Quality Gate Engine]
-------------------------------------------------
-Runs a 3-stage closed-loop automated evaluation on the current codebase:
-- Stage 1: Security & AST Static Guardrails (CWE-798, CWE-89, CWE-327)
-- Stage 2: Automated Unit & Edge-Case Test Suite
-- Stage 3: Latency & Performance SLA Benchmark
+"""Workshop quality gate, deliberately scoped rather than a security certificate.
 
-Generates `harness_report.json` for AI self-healing feedback loops.
-Exit code: 0 = ALL PASS, 1 = HARNESS FAILED
+Stage 1: Python AST patterns (JS/TS use limited text patterns).
+Stage 2: pytest with a main.py line-coverage threshold.
+Stage 3: a set microbenchmark and a static WAL execute-call check.
+No stage claims to measure real HTTP p99 or production availability.
 """
-
-import os
-import sys
-import re
-import time
+import argparse
+import ast
 import json
+import os
+from pathlib import Path
+import re
 import subprocess
+import sys
+import time
+
+SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "tests", "test", "templates", "harness", ".pytest_cache"}
+SQL_WORDS = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE)\s", re.IGNORECASE)
+SECRET_NAMES = re.compile(r"password|secret|token|api_?key", re.IGNORECASE)
 
 
-def print_header(title: str):
-    print(f"\n\033[1;36m{'='*60}\033[0m")
-    print(f"\033[1;36m  {title}\033[0m")
-    print(f"\033[1;36m{'='*60}\033[0m")
+def print_header(title):
+    print(f"\n{'=' * 60}\n  {title}\n{'=' * 60}")
 
 
-def stage1_security_audit() -> list:
-    """Stage 1: Scan all source files for security vulnerabilities."""
-    print("🔍 [Stage 1] Running Rule-based Security Pattern Scan...")
-    findings = []
-    
-    target_exts = (".py", ".js", ".ts")
-    for root, _, files in os.walk("."):
-        if any(skip in root for skip in [".git", ".venv", "venv", "node_modules", "__pycache__", "tests", "test", "templates", "harness"]):
+def finding(rule, path, line, message, stage="Security"):
+    # Do not copy source lines or secret values into logs/reports.
+    return {"stage": stage, "rule": rule, "file": str(path), "line": line, "message": message}
+
+
+def audit_python(source, path):
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as exc:
+        return [finding("Source Parse Error", path, exc.lineno or 1, "Python 구문 분석 실패")]
+    results = []
+    for node in ast.walk(tree):
+        dynamic = isinstance(node, ast.JoinedStr) or (
+            isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod))
+        ) or (
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "format"
+        )
+        if dynamic:
+            fragments = " ".join(
+                child.value for child in ast.walk(node)
+                if isinstance(child, ast.Constant) and isinstance(child.value, str)
+            )
+            if SQL_WORDS.search(fragments):
+                results.append(finding("CWE-89 (Dynamic SQL)", path, node.lineno, "SQL 문자열 조합 발견. 매개변수 바인딩 여부를 검토하세요."))
+
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names = [child.id for target in targets for child in ast.walk(target) if isinstance(child, ast.Name)]
+            if any(SECRET_NAMES.search(name) for name in names):
+                value = node.value
+                literal = isinstance(value, ast.Constant) and isinstance(value.value, str) and bool(value.value)
+                fallback = (
+                    isinstance(value, ast.Call)
+                    and isinstance(value.func, ast.Attribute)
+                    and value.func.attr in {"getenv", "get"}
+                    and (
+                        (len(value.args) >= 2 and isinstance(value.args[1], ast.Constant) and isinstance(value.args[1].value, str) and bool(value.args[1].value))
+                        or any(kw.arg == "default" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str) and bool(kw.value.value.value) for kw in value.keywords)
+                    )
+                )
+                if literal or fallback:
+                    results.append(finding("CWE-798 (Hardcoded Secret)", path, node.lineno, "비밀값 또는 비밀값의 기본값을 코드에 저장하지 마세요."))
+
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"md5", "sha1"}:
+            results.append(finding("CWE-327 (Weak Hash)", path, node.lineno, "MD5/SHA-1 사용 목적을 검토하세요. 비밀번호에는 적절한 비밀번호 해시를 사용하세요."))
+
+        if isinstance(node, ast.ExceptHandler):
+            broad = node.type is None or (isinstance(node.type, ast.Name) and node.type.id in {"Exception", "BaseException"})
+            empty = all(isinstance(child, ast.Pass) or (
+                isinstance(child, ast.Expr) and isinstance(child.value, ast.Constant) and child.value.value is Ellipsis
+            ) for child in node.body)
+            if broad and empty:
+                results.append(finding("Silent Failure (Empty Except)", path, node.lineno, "광범위한 예외를 아무 처리 없이 무시하는 구문입니다."))
+    # Nested string expressions can point to the same issue.
+    return list({(item["rule"], item["line"]): item for item in results}.values())
+
+
+def stage1_security_audit():
+    print("[Stage 1] Python AST / limited JS-TS pattern scan")
+    results = []
+    scanned = 0
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [name for name in dirs if name not in SKIP_DIRS]
+        for name in sorted(files):
+            path = Path(root) / name
+            if path.suffix not in {".py", ".js", ".ts"}:
+                continue
+            scanned += 1
+            try:
+                source = path.read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeError):
+                results.append(finding("Source Read Error", path, 1, "소스 파일을 읽지 못했습니다. 검사를 통과로 처리하지 않습니다."))
+                continue
+            if path.suffix == ".py":
+                results.extend(audit_python(source, path))
+            else:
+                for line, text in enumerate(source.splitlines(), 1):
+                    if re.search(r"createHash\(['\"](?:md5|sha1)['\"]\)", text):
+                        results.append(finding("CWE-327 (Weak Hash)", path, line, "약한 해시 패턴 발견"))
+                    if re.search(r"(?i)(password|secret|token|api_?key)\s*=\s*['\"][^'\"]+['\"]", text):
+                        results.append(finding("CWE-798 (Hardcoded Secret)", path, line, "비밀값 문자열 대입 패턴 발견"))
+                    if SQL_WORDS.search(text) and (("$" + "{") in text or " + " in text):
+                        results.append(finding("CWE-89 (Dynamic SQL)", path, line, "동적 SQL 의심 패턴 발견"))
+    if not scanned:
+        results.append(finding("No Source Files", ".", 0, "검사할 소스 파일이 없습니다."))
+    print(f"  scanned={scanned}, findings={len(results)}")
+    for item in results:
+        print(f"  FAIL [{item['rule']}] {item['file']}:{item['line']} {item['message']}")
+    return results
+
+
+def stage2_unit_tests():
+    print("\n[Stage 2] Automated tests and main.py coverage >= 85%")
+    test_dirs = [name for name in ("tests", "test") if Path(name).is_dir()]
+    if not any(
+        path.name.startswith("test_") or path.name.endswith("_test.py")
+        for folder in test_dirs for path in Path(folder).rglob("*.py")
+    ):
+        print("  FAIL: 테스트 파일이 없습니다.")
+        return [finding("Missing Tests", ".", 0, "테스트가 없으므로 검증을 통과할 수 없습니다.", "Tests")]
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", *test_dirs, "-q", "--tb=short",
+             "--cov=main", "--cov-report=term-missing", "--cov-fail-under=85"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return [finding("Test Timeout", ".", 0, "테스트가 180초 제한을 넘었습니다.", "Tests")]
+    print(result.stdout)
+    if result.returncode:
+        return [finding("Unit Test / Coverage Failure", ".", 0, (result.stdout + result.stderr)[-2000:], "Tests")]
+    print("  PASS: 작성된 테스트와 커버리지 기준 통과")
+    return []
+
+
+def stage3_performance_benchmark():
+    print("\n[Stage 3] Set microbenchmark and static WAL call check")
+    results = []
+    start = time.perf_counter()
+    sample = set(range(50000))
+    for _ in range(1000):
+        _ = 49999 in sample
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    print(f"  Set construction + 1000 lookups: {elapsed_ms:.2f}ms (not HTTP p99)")
+    if elapsed_ms > 100:
+        results.append(finding("Microbenchmark Threshold", ".", 0, f"집합 예제 계산 {elapsed_ms:.2f}ms > 100ms", "Performance"))
+    has_wal = False
+    for filename in ("main.py", "app.py"):
+        path = Path(filename)
+        if not path.exists():
             continue
-        for f in files:
-            if f.endswith(target_exts) and not f.startswith("check_harness"):
-                path = os.path.join(root, f)
-                try:
-                    with open(path, "r", encoding="utf-8", errors="ignore") as fp:
-                        content = fp.read()
-                        lines = content.split("\n")
-                except Exception:
-                    continue
-
-                for idx, line in enumerate(lines, 1):
-                    # Check 1: Hardcoded Secrets
-                    if re.search(r'(?i)(api[_-]?key|jwt_secret|password)\s*=\s*["\'][a-zA-Z0-9_\-\.]{8,}["\']', line):
-                        if "os.getenv" not in line and "process.env" not in line:
-                            findings.append({
-                                "stage": "Security",
-                                "rule": "CWE-798 (Hardcoded Secret)",
-                                "file": path,
-                                "line": idx,
-                                "message": f"하드코딩된 비밀값이 발견되었습니다: {line.strip()[:60]}"
-                            })
-
-                    # Check 2: SQL Injection
-                    if re.search(r'(?i)(SELECT|INSERT|UPDATE|DELETE)\s+.*f["\']', line) or (re.search(r'(?i)(SELECT|INSERT)\s+.*WHERE', line) and ' + ' in line):
-                        findings.append({
-                            "stage": "Security",
-                            "rule": "CWE-89 (SQL Injection)",
-                            "file": path,
-                            "line": idx,
-                            "message": f"문자열 포맷팅으로 작성된 취약한 SQL 쿼리: {line.strip()[:60]}"
-                        })
-
-                    # Check 3: Weak Crypto
-                    if "hashlib.md5" in line or "createHash('md5')" in line:
-                        findings.append({
-                            "stage": "Security",
-                            "rule": "CWE-327 (Broken Crypto)",
-                            "file": path,
-                            "line": idx,
-                            "message": f"취약한 MD5 해시 함수 사용: {line.strip()[:60]}"
-                        })
-
-                    # Check 4: Bare except
-                    if re.search(r'except\s*:\s*(pass|\.\.\.)', line):
-                        findings.append({
-                            "stage": "Robustness",
-                            "rule": "Silent Failure (Bare Except)",
-                            "file": path,
-                            "line": idx,
-                            "message": f"모든 에러를 삼키는 빈 except 블록: {line.strip()[:60]}"
-                        })
-
-    if not findings:
-        print("  \033[1;32m✅ Stage 1 PASS: 지정된 보안 패턴에서 발견 사항 0건\033[0m")
-    else:
-        for f in findings:
-            print(f"  \033[1;31m❌ [{f['rule']}] {f['file']}:{f['line']} - {f['message']}\033[0m")
-    return findings
-
-
-def stage2_unit_tests() -> list:
-    """Stage 2: Run automated test suite via pytest or unittest."""
-    print("\n🧪 [Stage 2] Running Automated Unit & Regression Tests...")
-    failures = []
-    
-    test_dirs = [d for d in ["tests", "test"] if os.path.isdir(d)]
-    if not test_dirs:
-        print("  \033[1;33m⚠️ Stage 2 SKIP: tests/ 디렉토리가 없습니다. (단위 테스트 추가 권장)\033[0m")
-        return failures
-
-    has_test_files = any(
-        f.startswith("test_") or f.endswith("_test.py")
-        for d in test_dirs
-        for _, _, files in os.walk(d)
-        for f in files
-    )
-    if not has_test_files:
-        print("  \033[1;33m⚠️ Stage 2 SKIP: tests/ 디렉토리에 테스트 파일이 없습니다. (단위 테스트 추가 권장)\033[0m")
-        return failures
-
-    res = subprocess.run([sys.executable, "-m", "pytest", test_dirs[0], "-v", "--tb=short"], capture_output=True, text=True)
-    if res.returncode == 0:
-        print("  \033[1;32m✅ Stage 2 PASS: 모든 단위/통합 테스트 100% 통과\033[0m")
-    else:
-        print("  \033[1;31m❌ Stage 2 FAIL: 테스트 실패 발생\033[0m")
-        failures.append({
-            "stage": "Tests",
-            "rule": "Unit Test Failure",
-            "message": res.stdout[-400:] if len(res.stdout) > 400 else res.stdout
-        })
-    return failures
-
-
-def stage3_performance_benchmark() -> list:
-    """Stage 3: Run quick latency, throughput, and DB concurrency verification."""
-    print("\n⚡ [Stage 3] Running Set Lookup Microbenchmark & WAL Source Check...")
-    sla_issues = []
-
-    # Benchmark 1: 10,000 iterations hash lookup vs list scan test
-    t0 = time.perf_counter()
-    sample_data = set(range(50000))
-    for i in range(1000):
-        _ = 49999 in sample_data
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-
-    if elapsed_ms > 100.0:
-        sla_issues.append({
-            "stage": "Performance",
-            "rule": "SLA Latency Violation",
-            "message": f"기준 응답 시간 초과 (소요: {elapsed_ms:.2f}ms > SLA 한계 100ms)"
-        })
-        print(f"  \033[1;31m❌ [SLA Latency] 지연 시간 {elapsed_ms:.2f}ms (SLA 100ms 위반)\033[0m")
-    else:
-        print(f"  \033[1;32m✅ [Microbenchmark] 집합 생성과 조회 총 {elapsed_ms:.2f}ms < 100ms (API p99 아님)\033[0m")
-
-    # Benchmark 2: SQLite Concurrency & WAL Mode Configuration Guardrail
-    has_wal_config = False
-    for candidate in ["main.py", "app.py"]:
-        if os.path.exists(candidate):
-            with open(candidate, "r", encoding="utf-8", errors="ignore") as fp:
-                src = fp.read()
-                if "journal_mode=WAL" in src or "journal_mode = WAL" in src:
-                    has_wal_config = True
-                    break
-
-    if not has_wal_config:
-        sla_issues.append({
-            "stage": "Performance",
-            "rule": "CWE-400 (Missing SQLite WAL Concurrency Mode)",
-            "message": "고동시성 부하 시 DB 파일 락(database is locked, 500 에러) 위험: PRAGMA journal_mode=WAL 설정이 필요합니다."
-        })
-        print("  \033[1;31m❌ [DB Concurrency] SQLite WAL 모드 미설정 (동시성 파일 락 병목 위험)\033[0m")
-    else:
-        print("  \033[1;32m✅ [WAL Source Check] 코드에서 WAL 설정 문자열 확인 (실제 동시성은 별도 테스트)\033[0m")
-
-    return sla_issues
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeError, SyntaxError):
+            continue  # Stage 1 reports source errors separately.
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"execute", "executescript"} and node.args):
+                continue
+            value = node.args[0]
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                if re.search(r"\bPRAGMA\s+journal_mode\s*=\s*WAL\b", value.value, re.IGNORECASE):
+                    has_wal = True
+    if not has_wal:
+        results.append(finding("Missing SQLite WAL Call", ".", 0, "SQLite 실행 구문에서 WAL 설정을 확인하지 못했습니다.", "Performance"))
+    print("  WAL execute-call present" if has_wal else "  FAIL: WAL execute-call missing")
+    return results
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--security-only", action="store_true", help="Run the source scan only (used by the PR review job).")
+    args = parser.parse_args()
     print_header("Campus Harness Verification Engine")
-    
-    sec_issues = stage1_security_audit()
-    test_issues = stage2_unit_tests()
-    perf_issues = stage3_performance_benchmark()
-    
-    total_issues = sec_issues + test_issues + perf_issues
-    passed = len(total_issues) == 0
-
+    issues = stage1_security_audit()
+    if not args.security_only:
+        issues += stage2_unit_tests()
+        issues += stage3_performance_benchmark()
     report = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "status": "APPROVED" if passed else "REJECTED",
-        "total_failures": len(total_issues),
-        "failures": total_issues
+        "status": "REJECTED" if issues else "APPROVED",
+        "scope": "security-patterns" if args.security_only else "workshop-checks",
+        "total_failures": len(issues), "failures": issues,
+        "limitations": "Limited static checks and written tests; not a complete security audit or HTTP SLA certification.",
     }
-    
-    with open("harness_report.json", "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
-
+    Path("harness_report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     print_header("Harness Evaluation Summary")
-    if passed:
-        print("\033[1;32m🎉 [GREEN] 이 하네스의 검사 기준 통과. 운영 배포 안전성을 보장하지 않습니다.\033[0m")
-        print("📄 상세 리포트가 harness_report.json에 기록되었습니다.\n")
-        sys.exit(0)
-    else:
-        print(f"\033[1;31m🚨 [RED GATE] 총 {len(total_issues)}건의 품질 게이트 탈락 발생!\033[0m")
-        print("🤖 AI 에이전트에게 harness_report.json을 입력으로 제공하여 자율 수정을 요청하세요.\n")
-        sys.exit(1)
+    print(f"[RED GATE] {len(issues)} finding(s)" if issues else "[GREEN] Specified checks passed; production safety is not guaranteed.")
+    print("Report: harness_report.json")
+    return 1 if issues else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
