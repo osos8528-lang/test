@@ -3,8 +3,10 @@
 [Universal Concurrency & Load Simulation Engine]
 ------------------------------------------------
 Simulates high-concurrency traffic against SQLite REST APIs to demonstrate:
-- BEFORE (Naive): File lock contention (database is locked, ~34% 500 Server Error)
-- AFTER (Enterprise): WAL mode + Busy Timeout (0.00% Error Rate, Sub-ms Latency)
+- BEFORE: rollback journal, short timeout and an artificial transaction delay.
+- AFTER: WAL, longer timeout and no artificial delay.
+Results depend on the machine. This is not a controlled WAL-only comparison
+and does not establish availability or a production SLA.
 
 Usage:
   python3 harness/simulate_load.py                  # Standalone Before vs After benchmark
@@ -17,6 +19,7 @@ import json
 import os
 import sqlite3
 import sys
+import tempfile
 import time
 import urllib.request
 import urllib.error
@@ -82,27 +85,22 @@ def run_live_load_test(target_url: str, total_requests: int = 100, concurrency: 
     print(f"  총 요청 수: {total_requests}건 | 동시 작업자: {concurrency}명 | 소요 시간: {total_time:.2f}초")
     print(f"  처리량(RPS): {rps:.1f} req/s")
     print(f"  상태 코드 분포: {status_counts}")
-    print(f"  성공(2xx): {success_count}건 | 실패(5xx/에러): {fail_count}건")
+    print(f"  성공(200/201): {success_count}건 | 기타 HTTP 응답/연결 실패: {fail_count}건")
     print(f"  에러율: {error_rate:.2f}%")
     print(f"  지연 시간: p50={p50:.2f}ms | p95={p95:.2f}ms | p99={p99:.2f}ms")
 
-    if error_rate > 5.0:
-        print(f"\n  \033[1;31m❌ [FAIL] 고동시성 쓰기 충돌 감지! (에러율: {error_rate:.1f}%)\033[0m")
-        print("  💡 원인: SQLite 기본 롤백 저널 모드로 인한 다중 쓰기 락 충돌 (database is locked)")
-        print("  🔧 조치: PRAGMA journal_mode=WAL 및 busy_timeout=5000 설정을 적용하세요.")
+    if fail_count:
+        print(f"\n  \033[1;31m❌ [FAIL] 요청 실패 발생 (에러율: {error_rate:.1f}%)\033[0m")
+        print("  서버 로그와 응답을 확인하세요. 이 결과만으로 실패 원인을 단정할 수 없습니다.")
     else:
-        print(f"\n  \033[1;32m✅ [PASS] 무장애 완주! (에러율: {error_rate:.2f}%, p99: {p99:.2f}ms)\033[0m")
+        print(f"\n  \033[1;32m✅ [PASS] 이번 요청에서 실패 없음 (에러율: {error_rate:.2f}%, p99: {p99:.2f}ms)\033[0m")
 
 
 def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
     """Run simulated Before vs After benchmark to demonstrate DB lock and WAL resolution."""
     print_header("SQLite 동시성 락(Lock) & WAL 최적화 전후 시뮬레이션")
-    test_db = "temp_concurrency_sim.db"
-
-    # Cleanup any leftovers
-    for ext in ["", "-wal", "-shm"]:
-        if os.path.exists(test_db + ext):
-            os.remove(test_db + ext)
+    fd, test_db = tempfile.mkstemp(prefix="campus_load_", suffix=".db")
+    os.close(fd)
 
     # -------------------------------------------------------------
     # 1. BEFORE: Naive SQLite (Rollback Journal, no WAL, short timeout)
@@ -123,6 +121,7 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
 
     def naive_worker(idx: int):
         t0 = time.perf_counter()
+        c = None
         try:
             c = sqlite3.connect(test_db, timeout=0.08)
             cur = c.cursor()
@@ -130,12 +129,14 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
             time.sleep(0.002)  # Simulate small transaction duration (2ms)
             cur.execute("INSERT INTO todos (title, description) VALUES (?, ?)", (f"Task {idx}", "Naive"))
             c.commit()
-            c.close()
             elapsed = (time.perf_counter() - t0) * 1000
             return True, elapsed, None
         except sqlite3.OperationalError as e:
             elapsed = (time.perf_counter() - t0) * 1000
             return False, elapsed, str(e)
+        finally:
+            if c is not None:
+                c.close()
 
     t_start = time.perf_counter()
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as ex:
@@ -150,13 +151,13 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
     naive_rps = total_requests / naive_total_time if naive_total_time > 0 else 0
 
     print(f"  - 성공: {naive_success}건 | 실패(Lock 발생): {naive_fail}건")
-    print(f"  - \033[1;31m에러율: {naive_error_rate:.1f}% (500 Server Error: database is locked)\033[0m")
+    print(f"  - \033[1;31m에러율: {naive_error_rate:.1f}% (SQLite 작업 실패, HTTP 실험 아님)\033[0m")
     print(f"  - 처리량: {naive_rps:.1f} RPS | p99 지연: {naive_p99:.2f}ms")
 
     # -------------------------------------------------------------
     # 2. AFTER: Enterprise SQLite (WAL Mode + busy_timeout=5000)
     # -------------------------------------------------------------
-    print("\n\033[1;32m[Step 2] Enterprise DB 동시성 부하 테스트 (세션 2: WAL 모드 + busy_timeout=5초)\033[0m")
+    print("\n\033[1;32m[Step 2] 개선 설정 DB 동시성 부하 테스트 (WAL 모드 + busy_timeout=5초)\033[0m")
     conn = sqlite3.connect(test_db)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -165,18 +166,21 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
 
     def wal_worker(idx: int):
         t0 = time.perf_counter()
+        c = None
         try:
             c = sqlite3.connect(test_db, timeout=5.0)
             c.execute("PRAGMA busy_timeout=5000")
             cur = c.cursor()
             cur.execute("INSERT INTO todos (title, description) VALUES (?, ?)", (f"Task {idx}", "Enterprise WAL"))
             c.commit()
-            c.close()
             elapsed = (time.perf_counter() - t0) * 1000
             return True, elapsed, None
         except sqlite3.OperationalError as e:
             elapsed = (time.perf_counter() - t0) * 1000
             return False, elapsed, str(e)
+        finally:
+            if c is not None:
+                c.close()
 
     t_start = time.perf_counter()
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as ex:
@@ -191,7 +195,7 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
     wal_rps = total_requests / wal_total_time if wal_total_time > 0 else 0
 
     print(f"  - 성공: {wal_success}건 | 실패: {wal_fail}건")
-    print(f"  - \033[1;32m에러율: {wal_error_rate:.2f}% (무장애 완주)\033[0m")
+    print(f"  - \033[1;32m에러율: {wal_error_rate:.2f}% (이번 실험 관측값)\033[0m")
     print(f"  - 처리량: {wal_rps:.1f} RPS | p99 지연: {wal_p99:.2f}ms")
 
     # Cleanup
@@ -206,12 +210,12 @@ def run_standalone_comparison(total_requests: int = 100, concurrency: int = 20):
     markdown_table = f"""
 | 지표 (Metrics) | ❌ Naive 초안 (세션 1) | ✅ 하네스 적용 후 (세션 2) | 개선 효과 |
 |:---|:---:|:---:|:---:|
-| **동시 쓰기 에러율** | **{naive_error_rate:.1f}%** (500 Lock Error) | **{wal_error_rate:.2f}%** (무장애 완주) | **SLA 99.99% 달성** |
-| **초당 처리량 (Throughput)** | **{naive_rps:.1f} RPS** (락 병목) | **{wal_rps:.1f} RPS** (논블로킹 쓰기) | **🚀 처리량 {wal_rps / max(naive_rps, 1):.1f}배 향상** |
-| **p99 응답 지연 (Latency)** | **{naive_p99:.2f} ms** | **{wal_p99:.2f} ms** | **서브밀리초 단축** |
+| **동시 쓰기 에러율** | **{naive_error_rate:.1f}%** | **{wal_error_rate:.2f}%** | 이번 실험의 관측값 |
+| **초당 시도 수** | **{naive_rps:.1f} req/s** | **{wal_rps:.1f} req/s** | 성공·실패 모두 포함 |
+| **DB 작업 p99 지연** | **{naive_p99:.2f} ms** | **{wal_p99:.2f} ms** | HTTP API 지연 아님 |
 """
     print(markdown_table.strip())
-    print("\n👉 위 표를 `templates/README_PORTFOLIO_TEMPLATE.md` 또는 `README.md`에 그대로 반영할 수 있습니다.\n")
+    print("\n주의: 저널 모드 외에도 대기 시간과 인위적 지연이 다릅니다. WAL만의 개선 효과나 운영 SLA를 입증하지 않습니다.\n")
 
 
 def main():

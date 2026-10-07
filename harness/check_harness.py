@@ -27,7 +27,7 @@ def print_header(title: str):
 
 def stage1_security_audit() -> list:
     """Stage 1: Scan all source files for security vulnerabilities."""
-    print("🔍 [Stage 1] Running AST Security & Secret Scan...")
+    print("🔍 [Stage 1] Running Rule-based Security Pattern Scan...")
     findings = []
     
     target_exts = (".py", ".js", ".ts")
@@ -87,7 +87,7 @@ def stage1_security_audit() -> list:
                         })
 
     if not findings:
-        print("  \033[1;32m✅ Stage 1 PASS: 보안 취약점 0건 (Clean)\033[0m")
+        print("  \033[1;32m✅ Stage 1 PASS: 지정된 보안 패턴에서 발견 사항 0건\033[0m")
     else:
         for f in findings:
             print(f"  \033[1;31m❌ [{f['rule']}] {f['file']}:{f['line']} - {f['message']}\033[0m")
@@ -114,7 +114,7 @@ def stage2_unit_tests() -> list:
         print("  \033[1;33m⚠️ Stage 2 SKIP: tests/ 디렉토리에 테스트 파일이 없습니다. (단위 테스트 추가 권장)\033[0m")
         return failures
 
-    res = subprocess.run(["python3", "-m", "pytest", test_dirs[0], "-v", "--tb=short"], capture_output=True, text=True)
+    res = subprocess.run([sys.executable, "-m", "pytest", test_dirs[0], "-v", "--tb=short"], capture_output=True, text=True)
     if res.returncode == 0:
         print("  \033[1;32m✅ Stage 2 PASS: 모든 단위/통합 테스트 100% 통과\033[0m")
     else:
@@ -129,7 +129,7 @@ def stage2_unit_tests() -> list:
 
 def stage3_performance_benchmark() -> list:
     """Stage 3: Run quick latency, throughput, and DB concurrency verification."""
-    print("\n⚡ [Stage 3] Running Performance & Latency SLA Benchmark...")
+    print("\n⚡ [Stage 3] Running Set Lookup Microbenchmark & WAL Source Check...")
     sla_issues = []
 
     # Benchmark 1: 10,000 iterations hash lookup vs list scan test
@@ -147,7 +147,7 @@ def stage3_performance_benchmark() -> list:
         })
         print(f"  \033[1;31m❌ [SLA Latency] 지연 시간 {elapsed_ms:.2f}ms (SLA 100ms 위반)\033[0m")
     else:
-        print(f"  \033[1;32m✅ [SLA Latency] p99 응답 시간 {elapsed_ms:.2f}ms < 100ms SLA 충족\033[0m")
+        print(f"  \033[1;32m✅ [Microbenchmark] 집합 생성과 조회 총 {elapsed_ms:.2f}ms < 100ms (API p99 아님)\033[0m")
 
     # Benchmark 2: SQLite Concurrency & WAL Mode Configuration Guardrail
     has_wal_config = False
@@ -167,7 +167,7 @@ def stage3_performance_benchmark() -> list:
         })
         print("  \033[1;31m❌ [DB Concurrency] SQLite WAL 모드 미설정 (동시성 파일 락 병목 위험)\033[0m")
     else:
-        print("  \033[1;32m✅ [DB Concurrency] SQLite WAL 모드 활성화 (고동시성 락 충돌 방어 완료)\033[0m")
+        print("  \033[1;32m✅ [WAL Source Check] 코드에서 WAL 설정 문자열 확인 (실제 동시성은 별도 테스트)\033[0m")
 
     return sla_issues
 
@@ -194,7 +194,7 @@ def main():
 
     print_header("Harness Evaluation Summary")
     if passed:
-        print("\033[1;32m🎉 [100% GREEN] 모든 하네스 검증 통과! 프로덕션 배포가 안전합니다.\033[0m")
+        print("\033[1;32m🎉 [GREEN] 이 하네스의 검사 기준 통과. 운영 배포 안전성을 보장하지 않습니다.\033[0m")
         print("📄 상세 리포트가 harness_report.json에 기록되었습니다.\n")
         sys.exit(0)
     else:
